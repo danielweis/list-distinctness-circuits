@@ -943,3 +943,4 @@ end CircuitLowerBound
 #print axioms CircuitLowerBound.cslib_superlinear
 #print axioms CircuitLowerBound.full_basis_complexity
 #print axioms CircuitLowerBound.deMorgan_superlinear
+#print axioms CircuitLowerBound.cslib_lower_bound
