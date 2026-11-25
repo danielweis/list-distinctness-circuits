@@ -43,8 +43,12 @@ lake env lean "$W/axioms.lean"
 if [ -f "$HERE/CircuitLowerBound.lean" ]; then
   echo "== circuit lower bound $(date)"
   lake build Cslib.Computability.Circuit.Complexity \
+             Cslib.Computability.Circuit.Full \
+             Cslib.Computability.Circuit.Boolean.Complexity \
              Complexity.Computability.Circuit.Boolean.ElementDistinctness
   cp "$HERE/CircuitLowerBound.lean" ./CircuitLowerBound.lean
-  lake env lean CircuitLowerBound.lean
+  lake env lean -o .lake/build/lib/lean/CircuitLowerBound.olean CircuitLowerBound.lean
+  echo "== leanchecker --fresh $(date)"
+  time lake env leanchecker -v --fresh CircuitLowerBound
 fi
 echo "== done $(date)"

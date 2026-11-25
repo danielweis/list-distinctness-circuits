@@ -3,6 +3,8 @@ import OAI.LinearAlgebra.MatrixExponent.CompareExchange
 import OAI.LinearAlgebra.MatrixExponent.Distinctness
 import OAI.LinearAlgebra.MatrixExponent.BatchDescent.Hard
 import Cslib.Computability.Circuit.Complexity
+import Cslib.Computability.Circuit.Full
+import Cslib.Computability.Circuit.Boolean.Complexity
 import Complexity.Computability.Circuit.Boolean.ElementDistinctness
 
 /-!
@@ -559,13 +561,13 @@ theorem superlinear (c : ℝ) :
 /-! ## Restatement with CSLib circuits and Complexitylib's element distinctness
 
 The statements below use only definitions from CSLib (`Cslib.Circuits.Circuit`, its evaluation,
-`Circuit.Computes`, `single`, `ecomplexity`, the full binary basis and the De Morgan basis) and
+`Circuit.Computes`, `single`, `complexity`, the full binary basis and the De Morgan basis) and
 from Complexitylib (`Cslib.Circuits.Boolean.elementDistinctness`). -/
 
 section Bridge
 
 open Cslib.Circuits (Wire Line Program Signature Interpretation single fullSignature
-  fullInterpretation ecomplexity)
+  fullInterpretation complexity)
 open Cslib.Circuits.Boolean (elementDistinctness)
 
 universe v
@@ -903,25 +905,24 @@ theorem fanIn_full : ∀ {g : ℕ} (p : Program (fullSignature 2 Bool) n g), p.F
     cases op <;> simp [fullSignature]
 
 /-- **Circuit complexity over the full binary basis.** For every `c`, for all large `w`, the
-circuit complexity `C(f)` of element distinctness over the full binary basis `B₂` (CSLib's
-`ecomplexity`) exceeds `c N`. -/
+natural-number circuit complexity `C(f)` of element distinctness over the full binary basis `B₂`
+(CSLib's `complexity`, which requires basis completeness and is therefore non-vacuous) exceeds
+`c N`. -/
 theorem full_basis_complexity (c : ℕ) :
     ∀ᶠ w : ℕ in atTop,
-      ((c * (2 ^ w * (2 * w)) : ℕ) : ℕ∞) <
-        ecomplexity (fullInterpretation : Interpretation (fullSignature 2 Bool) Bool)
+      c * (2 ^ w * (2 * w)) <
+        complexity (fullInterpretation : Interpretation (fullSignature 2 Bool) Bool)
           (single (elementDistinctness (2 ^ w) (2 * w))) := by
   filter_upwards [cslib_superlinear.{0} (c : ℝ)] with w hw
-  have hle : (((c * (2 ^ w * (2 * w)) + 1 : ℕ)) : ℕ∞) ≤
-      ecomplexity (fullInterpretation : Interpretation (fullSignature 2 Bool) Bool)
-        (single (elementDistinctness (2 ^ w) (2 * w))) := by
-    rw [Cslib.Circuits.le_ecomplexity_iff]
-    intro C hC
-    have h := hw _ C (fanIn_full C.program) hC
-    have h' : c * (2 ^ w * (2 * w)) < C.size := by
-      have : ((c * (2 ^ w * (2 * w)) : ℕ) : ℝ) < C.size := by push_cast at h ⊢; linarith
-      exact_mod_cast this
-    exact_mod_cast h'
-  exact lt_of_lt_of_le (by exact_mod_cast Nat.lt_succ_self _) hle
+  obtain ⟨C, hC, hsize⟩ :=
+    Cslib.Circuits.exists_computesOn_size_eq_complexityOn
+      (I := (fullInterpretation : Interpretation (fullSignature 2 Bool) Bool))
+      (S := Set.univ) (f := single (elementDistinctness (2 ^ w) (2 * w)))
+  change C.size = complexity _ _ at hsize
+  rw [← hsize]
+  have h := hw _ C (fanIn_full C.program) (fun x => hC (Set.mem_univ x))
+  have : ((c * (2 ^ w * (2 * w)) : ℕ) : ℝ) < C.size := by push_cast at h ⊢; linarith
+  exact_mod_cast this
 
 /-- **De Morgan circuits.** The same bound for CSLib's De Morgan basis (AND, OR, NOT,
 constants). -/
@@ -934,13 +935,32 @@ theorem deMorgan_superlinear (c : ℝ) :
   filter_upwards [cslib_superlinear.{0} c] with w hw
   exact fun C hC => hw _ C C.fanInAtMost_two hC
 
+/-- **Circuit complexity over the De Morgan basis.** Natural-number `complexity` form over
+CSLib's complete De Morgan basis. -/
+theorem deMorgan_complexity (c : ℕ) :
+    ∀ᶠ w : ℕ in atTop,
+      c * (2 ^ w * (2 * w)) <
+        complexity Cslib.Circuits.Boolean.interpretation
+          (single (elementDistinctness (2 ^ w) (2 * w))) := by
+  filter_upwards [deMorgan_superlinear (c : ℝ)] with w hw
+  obtain ⟨C, hC, hsize⟩ :=
+    Cslib.Circuits.exists_computesOn_size_eq_complexityOn
+      (I := Cslib.Circuits.Boolean.interpretation)
+      (S := Set.univ) (f := single (elementDistinctness (2 ^ w) (2 * w)))
+  change C.size = complexity _ _ at hsize
+  rw [← hsize]
+  have h := hw C (fun x => hC (Set.mem_univ x))
+  have : ((c * (2 ^ w * (2 * w)) : ℕ) : ℝ) < C.size := by push_cast at h ⊢; linarith
+  exact_mod_cast this
+
 end Bridge
 
 end CircuitLowerBound
 
 #print axioms CircuitLowerBound.circuit_lower_bound
 #print axioms CircuitLowerBound.superlinear
+#print axioms CircuitLowerBound.cslib_lower_bound
 #print axioms CircuitLowerBound.cslib_superlinear
 #print axioms CircuitLowerBound.full_basis_complexity
 #print axioms CircuitLowerBound.deMorgan_superlinear
-#print axioms CircuitLowerBound.cslib_lower_bound
+#print axioms CircuitLowerBound.deMorgan_complexity
