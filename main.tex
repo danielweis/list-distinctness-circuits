@@ -1,0 +1,269 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{lmodern}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{microtype}
+\PassOptionsToPackage{hyphens}{url}
+\usepackage[hidelinks]{hyperref}
+\usepackage{url}
+\usepackage{xurl}
+\hyphenation{OpenAI}
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{claim}[theorem]{Claim}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{remark}[theorem]{Remark}
+
+\newcommand{\vol}{\operatorname{vol}}
+\newcommand{\Dw}{D_w}
+\newcommand{\B}{\mathcal{B}_2}
+\newcommand{\one}{\mathbf{1}}
+\setlength{\emergencystretch}{3em}
+
+\title{The list-distinctness theorem behind $\omega = 9/4$\\ implies superlinear Boolean circuit lower bounds}
+\author{Daniel Weis}
+\date{November 25, 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The preprint \emph{The matrix multiplication exponent is nine fourths} (OpenAI, November 24, 2026) proves its lower bound $\omega \ge 9/4$ by contradiction with a lower bound on the volume of tensor networks over finite fields that test whether the words in a list are pairwise distinct (its Theorem~2.2). We observe that Boolean circuits translate into such networks with constant-factor overhead, a translation the preprint itself uses. Consequently its Theorem~2.2 implies that every fan-in-two Boolean circuit over the full binary basis that decides element distinctness for $2^w$ words of $2w$ bits has more than $N w^{\sigma}/5$ gates, that is, size $\Omega(N(\log N)^{\sigma})$, where $N = 2w\cdot 2^w$ is the input length and $\sigma>0$ is a constant. Element distinctness is computed by uniform depth-three $\mathrm{AC}^0$ circuits. To our knowledge no superlinear lower bound against general circuits was known for any function in $\mathrm{NP}$; the best published bound is $3.1n-o(n)$, and a recent preprint claims $4n-O(\log n)$. The same argument gives lower bounds for sorting, distinct-element counting and graph acyclicity; for the conjunction of many independent instances; and against circuits that count witnesses modulo a prime, including unambiguous circuits. We also note consequences of the companion papers on their own, including a claimed $n^{1+\delta}$ lower bound for a $\oplus\mathrm{P}$ language. Theorem~2.2 has not been refereed. It is, however, stated and proved in the Lean development accompanying the preprint, as part of the formal proof of $\omega = 9/4$. We built that development and confirmed that the formal versions of Theorem~2.2 and of $\omega=9/4$ depend only on Lean's standard axioms. We then formalized the main lower bound (with weaker constants; the other consequences are not formalized) on top of it, and stated it with the definitions of circuits, circuit complexity and element distinctness from the independent libraries CSLib and Complexitylib: over the full binary basis, the De Morgan basis, or any basis of fan-in at most two, element distinctness has no circuits of linear size. These theorems too depend only on Lean's standard axioms.
+\end{abstract}
+
+\section{Introduction}
+
+Let $\omega_F$ denote the exponent of square matrix multiplication over a field $F$. An OpenAI preprint of October 2026 proved $\omega_{\mathbb C}\le 9/4$~\cite{OAI-UB}. L\"u proved its central separation step in arbitrary characteristic~\cite{Lu26}, Amanov, van den Berg and Zuiddam obtained the bound over every field~\cite{AvdBZ26}, and further expositions and constructive proofs followed~\cite{DLSW26,Pass26}. A second preprint, released on November 24, 2026~\cite{OAI-MM}, claims the matching lower bound: $\omega_F = 9/4$ over every field.
+
+The lower-bound argument of~\cite{OAI-MM} is a proof by contradiction. A strict saving below $9/4$ would let one compress tensor networks for tensor powers (\cite[Theorem~2.1]{OAI-MM}). Repeated compression would then produce networks testing list distinctness more cheaply than a separate lower bound allows (\cite[Theorem~2.2]{OAI-MM}). We restate the second ingredient; definitions are recalled in Section~\ref{sec:defs}.
+
+\begin{claim}[{\cite[Theorem~2.2]{OAI-MM}}]\label{claim:oai}
+Let $k$ be a finite field. There is a constant $\sigma = \sigma(k)>0$ such that for all sufficiently large $w$ and every integer $1\le t\le 2^w$,
+\[
+  \vol_k\bigl(\Dw^{\otimes t}\bigr) \;>\; t\,n_w\,w^{\sigma},
+\]
+where $\Dw$ is the zero-one tensor that tests whether a list of $2^w$ words of $2w$ bits is pairwise distinct, $n_w = 2w\cdot 2^w$ is its number of input bits, and the minimum defining $\vol_k$ ranges over all trivalent networks, including those that connect different lists.
+\end{claim}
+
+We call this a \emph{claim} because its written proof is in an unrefereed preprint and relies on two companion preprints~\cite{OAI-Euc,OAI-HC}. Its formal counterpart has been machine-checked, and so has a version of our main theorem with weaker constants (Section~\ref{sec:lean}). Our observation is the following; a version with weaker constants is machine-checked (Section~\ref{sec:lean}).
+
+\begin{theorem}\label{thm:main}
+Suppose Claim~\ref{claim:oai} holds for some finite field $k$, with constant $\sigma$. Then for all sufficiently large $w$, every Boolean circuit over the full binary basis $\B$ that computes $\Dw$ has more than $N w^{\sigma}/5$ gates, where $N=n_w$. In particular its size is $\Omega\bigl(N(\log N)^{\sigma}\bigr)$.
+\end{theorem}
+
+The function $\Dw$ is element distinctness on $2^w$ words of length $2\log_2(2^w)$. It is computed by uniform depth-three $\mathrm{AC}^0$ circuits (Lemma~\ref{lem:ac0}), and by Boolean circuits of size $O(N\log N)$ from sorting networks (Section~\ref{sec:upper}).
+
+\paragraph{Context.} Shannon's counting argument shows that most Boolean functions need exponential circuits. For functions in high complexity classes, lower bounds against circuits of every fixed polynomial size are known: for every $k$, $\Sigma_2^{\mathrm P}\not\subseteq \mathrm{SIZE}(n^k)$~\cite{Kan82} and $\mathrm{PP}\not\subseteq\mathrm{SIZE}(n^k)$~\cite{Vin05}. For functions in $\mathrm{NP}$ the known lower bounds against general circuits are linear. Over the full binary basis $B_2$, Blum's $3n-o(n)$ bound~\cite{Blum84} stood for three decades. It was improved to $(3+\tfrac1{86})n-o(n)$~\cite{FGHK16} and then to $3.1n-o(n)$~\cite{LY22}, and a recent preprint claims $4n-O(\log n)$~\cite{MS26}; over the De Morgan basis the best bound is $5n-o(n)$~\cite{IM02}. Superlinear lower bounds for element distinctness are known only in restricted models: formulas~\cite{Nec66}, circuits of bounded treewidth~\cite{dOO16}, and comparator circuits~\cite{GR20}. Superlinear lower bounds for sorting-type and multiplication-type functions were derived from the network coding conjecture of Li and Li~\cite{LL04,FHLS19,AFKL19}; a refutation of that conjecture was recently claimed~\cite{ZLL26} (Section~\ref{sec:coding}). Theorem~\ref{thm:main} therefore gives, assuming Claim~\ref{claim:oai}, the first superlinear lower bound against general Boolean circuits for a function in $\mathrm{NP}$, as far as we know, and the function is even in $\mathrm{AC}^0$.
+
+\paragraph{The observation is short.} The translation from circuits to networks is the one used in the proof of~\cite[Proposition~2.3]{OAI-MM}, and the companion paper states it as a general principle~\cite[Section~8]{OAI-Euc}. The authors therefore have the ingredients, but none of~\cite{OAI-MM,OAI-Euc,OAI-HC} states a Boolean circuit lower bound as a consequence; the circuit lower bounds of~\cite{OAI-HC} are for arithmetic circuits. We make the bookkeeping explicit (Section~\ref{sec:translate}), record further consequences (Section~\ref{sec:cons}), report what the Lean development formalizes (Section~\ref{sec:lean}), and discuss the written proof, the companion papers' own consequences, and ways the claim could be tested (Section~\ref{sec:discussion}).
+
+\section{Definitions}\label{sec:defs}
+
+We follow the conventions of~\cite[Section~2.1]{OAI-MM} and~\cite[Section~12.2]{OAI-HC}.
+
+\begin{definition}[Tensor networks]
+Fix a field $k$. A \emph{bit tensor} of arity $u$ is a function $\{0,1\}^u\to k$. A \emph{tensor network} consists of vertices, each carrying a bit tensor (its \emph{table}) whose argument positions are the vertex's \emph{ports}, and wires. Each wire either joins two ports or joins one port to a named \emph{exterior bit}; in the latter case it is an \emph{exterior wire}. Loops, parallel wires and disconnected networks are allowed~\cite[Section~12.2]{OAI-HC}. For each assignment of the exterior bits, the network's value is the sum, over all assignments of bits to the internal wires, of the product of the vertex tables. A network is \emph{trivalent} if every vertex has arity at most three. Its \emph{volume} is the number of vertices plus the number of wires, including exterior wires; its \emph{size} is the number of vertices plus the number of exterior bits. For a tensor $V$ on named bits, $\vol_k(V)$ is the least volume of a trivalent network over $k$ that represents $V$ exactly.
+\end{definition}
+
+\begin{definition}[List distinctness]
+For $w\ge1$, the input of $\Dw$ is a list $(x_1,\dots,x_{2^w})$ of words $x_i\in\{0,1\}^{2w}$, so $n_w = 2w\cdot 2^w$ bits. $\Dw(x)=1$ if the $x_i$ are pairwise distinct and $0$ otherwise. The tensor $\Dw^{\otimes t}$ has $t n_w$ exterior bits forming $t$ independent lists, and its value is the product of the $t$ answers. A network representing it may connect vertices belonging to different lists.
+\end{definition}
+
+\begin{definition}[Circuits]
+A Boolean circuit over $\B$ on inputs $x_1,\dots,x_N$ is a directed acyclic graph whose sources are the inputs and whose other nodes (\emph{gates}) each have two incoming edges and compute an arbitrary function $\{0,1\}^2\to\{0,1\}$ of their inputs. Fan-out is unbounded. One node is the output. The \emph{size} $s$ is the number of gates. The circuit is \emph{trimmed} if every input is read by some gate and every gate has a path to the output.
+\end{definition}
+
+\begin{lemma}\label{lem:ac0}
+$\Dw$ is computed by a uniform depth-three circuit of unbounded fan-in AND and OR gates over literals, with $O(N^2/\log N)$ gates and bottom fan-in two.
+\end{lemma}
+
+\begin{proof}
+$\Dw(x) = \bigwedge_{i<j}\bigvee_{b=1}^{2w}\bigl((x_{i,b}\wedge\neg x_{j,b})\vee(\neg x_{i,b}\wedge x_{j,b})\bigr)$. Merging the two levels of OR gives an AND of ORs of ANDs of two literals, with $\binom{2^w}{2}\cdot 4w = O(2^{2w}w) = O(N^2/w)$ bottom gates.
+\end{proof}
+
+\section{From circuits to networks}\label{sec:translate}
+
+\begin{lemma}\label{lem:translate}
+Let $C$ be a circuit over $\B$ with $N$ inputs and $s$ gates. Over every field $k$ there is a trivalent network with exterior bits $x_1,\dots,x_N$ whose value at every $x\in\{0,1\}^N$ is $C(x)\in\{0,1\}\subseteq k$, and whose volume is at most $10s+3N+5$. If $C$ is trimmed, the network has exactly $2s-N+2$ vertices, volume $5s-2N+4$ and size $2s+2$.
+\end{lemma}
+
+\begin{proof}
+For a node $v$ let $f(v)$ be the number of gate input slots that read $v$, plus one if $v$ is the output. Each gate has two input slots, so $\sum_v f(v) = 2s+1$.
+
+\emph{Gates.} For each gate $g$ computing $\varphi_g(a,b)$, place a vertex $G_g$ with table $T_g(a,b,c) = [\,c=\varphi_g(a,b)\,]$ on three ports: two inputs and one output. If both inputs of $g$ read the same node, both input ports are consumers of that node.
+
+\emph{Output pin.} Place a unary vertex $P$ with table $P(c)=[\,c=1\,]$. Its port is one of the consumers of the output node.
+
+\emph{Copying.} Each node $v$ has $m_v = f(v)+1$ \emph{ends} that must carry the same bit: its source (the exterior bit $x_i$ if $v$ is an input, or the output port of $G_v$ if $v$ is a gate) and its $f(v)$ consumer ports. If $m_v=1$, the source is attached to a unary vertex with table identically $1$. If $m_v=2$, the two ends are joined by one wire (an exterior wire if the source is an exterior bit). If $m_v\ge3$, the ends are joined through a path of $m_v-2$ trivalent vertices with the equality table $[\,a=b=c\,]$; such a path has $m_v-3$ internal wires and $m_v$ attachment points.
+
+\emph{General counts.} Node $v$ contributes at most $m_v$ vertices, so the number of vertices is $V\le s+1+\sum_v m_v = s+1+(2s+1)+(N+s) = 4s+N+2$. Each wire has two ends, each of which is a port or an exterior bit. There are at most $3V$ ports and exactly $N$ exterior bits, so there are at most $(3V+N)/2$ wires, and the volume is at most $(5V+N)/2 \le 10s+3N+5$.
+
+\emph{Trimmed counts.} If $C$ is trimmed, every node has $f(v)\ge1$, so $m_v\ge 2$ and node $v$ contributes exactly $m_v-2$ vertices. Then $V = s+1+\sum_v (f(v)-1) = s+1+(2s+1)-(N+s) = 2s-N+2$. Every port of every vertex is used, so there are $3s+1+3(s+1-N)$ ports; adding the $N$ exterior ends and halving gives $3s-N+2$ wires. Hence the volume is $5s-2N+4$ and the size is $V+N=2s+2$.
+
+\emph{Value.} Fix $x$. A term of the sum is an assignment of bits to the internal wires, and its product is nonzero only if every equality vertex sees equal bits. In that case all ends of each node $v$ carry a common bit $b_v$, with $b_{x_i}=x_i$. The table $T_g$ is nonzero only if $b_g=\varphi_g(b_u,b_{u'})$ for the inputs $u,u'$ of $g$. By induction in topological order, the only assignment with every gate table nonzero sets $b_v$ to the value of node $v$ on input $x$. For that assignment every gate and equality table equals $1$, and $P$ contributes $[\,C(x)=1\,]$. All other terms vanish. Hence the value is $C(x)$, computed with no cancellation and so valid in every characteristic.
+\end{proof}
+
+This is the construction in the proof of~\cite[Proposition~2.3]{OAI-MM}, which applies it to a sorting circuit; the point here is only that it applies to every circuit.
+
+\begin{lemma}\label{lem:depends}
+For $w\ge1$, $\Dw$ depends on every input bit. Consequently every circuit over $\B$ computing $\Dw$ can be trimmed without increasing its size.
+\end{lemma}
+
+\begin{proof}
+Fix a bit position $b$ of word $x_i$, and choose $j\neq i$. Choose $2^w$ pairwise distinct words, possible since $2^{2w}\ge 2^w$, such that $x_j$ equals $x_i$ with bit $b$ flipped. Flipping bit $b$ of $x_i$ changes $\Dw$ from $1$ to $0$. For the second statement, note that the output is a gate, since a function of a single input cannot depend on all $N\ge4$ inputs. Delete every gate with no path to the output. This does not change the computed function, and since the function depends on every input, every input is still read by some remaining gate.
+\end{proof}
+
+\begin{remark}[Circuits with feedback]\label{rem:cyclic}
+The general version of Lemma~\ref{lem:translate} uses acyclicity only to show that the consistent assignment of wires is unique. It therefore applies verbatim to circuits with feedback cycles in which, for every input, the gate equations $b_g=\varphi_g(b_u,b_{u'})$ have exactly one solution. Theorem~\ref{thm:main} below holds for such circuits with the constant $5$ replaced by $17$: since $\Dw$ depends on every input bit, every input must be read by some gate, so $N\le 2s$ and the general bound gives volume at most $16s+5$.
+\end{remark}
+
+\section{Consequences}\label{sec:cons}
+
+\begin{proof}[Proof of Theorem~\ref{thm:main}]
+Let $C$ compute $\Dw$ with $s$ gates. By Lemma~\ref{lem:depends} we may assume $C$ is trimmed. By Lemma~\ref{lem:translate}, $\vol_k(\Dw)\le 5s-2N+4 < 5s$. Claim~\ref{claim:oai} with $t=1$ gives $5s > N w^{\sigma}$. Finally, $\log_2 N = w+1+\log_2 w\le 2w$ for $w\ge1$, so $w^{\sigma}\ge 2^{-\sigma}(\log_2N)^{\sigma}$.
+\end{proof}
+
+Because Claim~\ref{claim:oai} is uniform in the number of lists $t$, the same argument gives a lower bound for many independent instances combined.
+
+\begin{corollary}[Conjunction of independent instances]\label{cor:and}
+Under the hypothesis of Theorem~\ref{thm:main}, for all sufficiently large $w$ and every $1\le t\le 2^w$, every circuit over $\B$ that computes $\bigwedge_{j=1}^{t}\Dw(x^{(j)})$ on $tN$ input bits has more than $tNw^{\sigma}/5$ gates.
+\end{corollary}
+
+\begin{proof}
+The function is $\Dw^{\otimes t}$ read as a Boolean function. It depends on every input bit (fix the other lists to be distinct and apply Lemma~\ref{lem:depends}), so the circuit can be trimmed, and Lemma~\ref{lem:translate} gives $\vol_k(\Dw^{\otimes t})< 5s$. Claim~\ref{claim:oai} applies.
+\end{proof}
+
+Several standard problems contain $\Dw$ with linear overhead, so they inherit the bound.
+
+\begin{corollary}[Problems containing element distinctness]\label{cor:reductions}
+Under the hypothesis of Theorem~\ref{thm:main}, each of the following needs circuits over $\B$ of size $\Omega(N(\log N)^{\sigma})$, where $N$ is the input length:
+\begin{enumerate}
+\item sorting $2^w$ words of $2w$ bits;
+\item computing the number of distinct words in such a list, or the largest multiplicity of a word;
+\item deciding whether an undirected graph given as a list of edges, each a pair of vertex labels, is acyclic.
+\end{enumerate}
+\end{corollary}
+
+\begin{proof}
+(1) From the sorted list, comparing adjacent words for equality costs $O(N)$ gates. (2) Comparing the count with $2^w$, or the multiplicity with $1$, costs $O(w)$ gates. (3) Label vertices by $(2w+1)$-bit strings: a root $r$, vertices $a_1,\dots,a_{2^w}$, and $b_y$ for $y\in\{0,1\}^{2w}$. Take the $2^{w+1}$ edges $\{r,a_i\}$ and $\{a_i,b_{x_i}\}$. Every bit of this edge list is a constant or a bit of $x$, so a circuit for acyclicity on these inputs, of length $2^{w+1}\cdot 2(2w+1)=\Theta(N)$, yields a circuit for $\Dw$ of no larger size. The graph is a tree if the $x_i$ are distinct, and contains the cycle $r,a_i,b_{x_i},a_j$ if $x_i=x_j$ for some $i\ne j$. In each case Theorem~\ref{thm:main} applies.
+\end{proof}
+
+Tensor networks can sum over internal bits, so the lower bound also applies to circuits that count witnesses.
+
+\begin{definition}[Counting circuits modulo $p$]
+Let $p$ be prime. A circuit $C(x,y)$ over $\B$ with inputs $x\in\{0,1\}^N$ and witness bits $y\in\{0,1\}^m$ \emph{computes $f$ by counting modulo $p$} if $\#\{y: C(x,y)=1\}\equiv f(x)\pmod p$ for every $x$. A circuit with $\#\{y:C(x,y)=1\} = f(x)$ exactly is \emph{unambiguous}; it computes $f$ by counting modulo every prime.
+\end{definition}
+
+\begin{corollary}[Counting circuits]\label{cor:count}
+Suppose Claim~\ref{claim:oai} holds for a finite field $k$ of characteristic $p$, with constant $\sigma$. Then for all sufficiently large $w$, every circuit over $\B$ with $s$ gates and $m$ witness bits that computes $\Dw$ by counting modulo $p$ satisfies $s+m > N w^{\sigma}/5$. In particular, if Claim~\ref{claim:oai} holds over any finite field, unambiguous circuits for $\Dw$ need $s+m = \Omega\bigl(N(\log N)^{\sigma}\bigr)$.
+\end{corollary}
+
+\begin{proof}
+The output is not an input $x_i$: otherwise the count would be $2^m x_i$, independent of the other inputs, contradicting Lemma~\ref{lem:depends}. If the output is a witness bit, the count is independent of $x$, again a contradiction. Delete the gates with no path to the output; the count is unchanged, and since it depends on every $x_i$, every $x_i$ is read by a remaining gate. Now modify the construction of Lemma~\ref{lem:translate}. A witness node $y_j$ has no exterior bit, so it has $f(y_j)$ ends. If $f(y_j)\ge 3$, join them with $f(y_j)-2$ equality vertices. If $f(y_j)=2$, join them by a wire. If $f(y_j)=1$, join the end by a wire to a unary all-ones vertex. If $f(y_j)=0$, join two unary all-ones vertices by a wire, which contributes the factor $2 = \#\{0,1\}$. In every case $y_j$ contributes at most $f(y_j)+2$ vertices, while inputs and gates contribute $f(v)-1$ each as in the trimmed count. So
+\[
+V \;\le\; s+1+\Bigl(2s+1-\sum_j f(y_j)\Bigr)-(N+s)+\sum_j\bigl(f(y_j)+2\bigr) \;=\; 2s-N+2+2m,
+\]
+and the volume is at most $(5V+N)/2\le 5(s+m)$ for $N\ge 3$. Summing over the internal wires now includes summing over $y$. For each fixed $(x,y)$ exactly one assignment of the remaining wires is nonzero, and it contributes $[\,C(x,y)=1\,]$, so the value is $\#\{y:C(x,y)=1\}\cdot 1_k = \Dw(x)$. Claim~\ref{claim:oai} with $t=1$ applies.
+\end{proof}
+
+The same proof covers signed counting: if circuits $C_+$ and $C_-$ share inputs and witnesses and $\sum_y\bigl(C_+(x,y)-C_-(x,y)\bigr)\equiv\Dw(x)\pmod p$, replace the pin by one binary vertex with table $(c_+,c_-)\mapsto c_+-c_-$. Let $s_\pm$ be the sizes of $C_\pm$ and $m$ the number of witness bits. After deleting gates with no path to either output, every input bit is read by a gate or is an output, since the gap depends on every input bit, so $N\le 2(s_++s_-)+2$. The resulting network therefore has volume $O(s_++s_-+m)$, and Claim~\ref{claim:oai} gives $s_++s_-+m=\Omega(N w^{\sigma})$. In particular the bound applies to circuits whose gap is exactly $\Dw(x)$, a nonuniform analogue of $\mathrm{SPP}$.
+
+\begin{remark}[A conditional separation at linear size]\label{rem:sep}
+The complement $\neg\Dw$ (some word repeats) has nondeterministic circuits of size $O(N)$ with only $2w = O(\log N)$ witness bits: guess indices $i\neq j$, select $x_i$ and $x_j$ with two multiplexers of size $O(N)$, and compare. Counting circuits modulo any prime $p$ can be complemented at additive cost $O(m+\log p)$. Add $r=\lceil\log_2 p\rceil$ witness bits $z$ and accept if either $z=0$ and $y=0^m$, or $1\le z\le p-1$ and $C(x,y)=1$. The count becomes $1+(p-1)\cdot\#\{y:C(x,y)=1\}\equiv 1-f(x)\pmod p$. So if Claim~\ref{claim:oai} holds for some finite field of characteristic $p$, Corollary~\ref{cor:count} shows that $\neg\Dw$ has linear-size nondeterministic circuits with $O(\log N)$ witness bits, but no unambiguous circuits and no counting circuits modulo $p$ with $s+m=o(N(\log N)^{\sigma})$.
+\end{remark}
+
+\section{Formal status of Claim~\ref{claim:oai}}\label{sec:lean}
+
+The repository accompanying~\cite{OAI-MM} contains a Lean development. At the commit cited below, its comparator file \path{lean/ComparatorChallenges/MatrixExponent.lean} states $\omega_F = 9/4$ for division-free formal circuits over every field. The proof is in the module \texttt{OAI.\allowbreak LinearAlgebra.\allowbreak SpectralBooks.\allowbreak ExactExponent}, and the comparator configuration permits only the axioms \texttt{propext}, \texttt{Quot.sound} and \texttt{Classical.choice}. We traced its import closure: it comprises 592 modules, including \texttt{BatchDescent.Hard}, of the repository, none of which contains \texttt{sorry}, \texttt{admit} or an \texttt{axiom} declaration, and imports nothing outside the repository except Mathlib and Lean's core library.
+
+The formal proof is organized like the informal one. The theorem \texttt{square\_of\_network\_bounds} (in \path{OAI/LinearAlgebra/MatrixExponent.lean}) derives $\omega_F = 9/4$ from three properties of the predicate \texttt{Realizes F w t m} over the prime fields $F=\mathbb{Z}/p$: \texttt{Seed} (a sorting-based network, the analogue of~\cite[Proposition~2.3]{OAI-MM}), \texttt{Compression} (Theorem~2.1) and \texttt{ManyList} (Theorem~2.2). All three are defined in \texttt{ListBounds.lean}. In this development:
+\begin{itemize}
+\item \texttt{Net F a b k m} is an inductive predicate: networks are built from vertex tables with at most three bit positions in total, by juxtaposition, composition and trace (summing over shared bits; internal cycles allowed), and rewiring. The index $m$ counts vertices.
+\item \texttt{Realizes F w t m} holds if some network with $v$ vertices represents, on $t$ lists of $2^w$ words of $2w$ bits, the product over the lists of the indicator that the list is duplicate-free, and $m = v + t\cdot 2w\cdot 2^w$, that is, $m$ is the network's size.
+\item \texttt{ManyList P} asserts: there is $\sigma>0$ such that for all sufficiently large $w$ and all $t,m$ with $1\le t\le 2w\cdot 2^w$, $P\,w\,t\,m$ implies $t\cdot 2w\cdot 2^w\cdot w^{\sigma} < 3m$.
+\item \texttt{BatchDescent/Hard.lean} proves \texttt{ManyList (Realizes F)} for every finite field $F$, and a stronger form, \texttt{manyList\_full}, for $t$ up to $2^{w^{1+\eta}}$.
+\end{itemize}
+The formal statement differs from Claim~\ref{claim:oai} in measuring size instead of volume (the two agree up to a constant factor for trivalent networks) and in the constant $3$. Informally, combining \texttt{ManyList} with the network of size $2s+2$ from Lemma~\ref{lem:translate} would give $N w^{\sigma} < 6s+6$. Lemma~\ref{lem:translate} itself is not formalized, however; the formal proof described below uses a different construction with weaker constants.
+
+\emph{Build and axiom check.} On November 24--25, 2026 we built the modules \texttt{OAI.\allowbreak LinearAlgebra.\allowbreak SpectralBooks.\allowbreak ExactExponent} and \texttt{OAI.\allowbreak LinearAlgebra.\allowbreak MatrixExponent.\allowbreak BatchDescent.\allowbreak Hard} at the commit cited below, with Lean~4.34.1 and Mathlib's prebuilt cache, on an Apple M2 laptop. The build completed without errors in 34 minutes. Lean's \texttt{\#print axioms} reports that \texttt{square\_exponent}, \texttt{manyList} and \texttt{manyList\_full} each depend only on \texttt{propext}, \texttt{Classical.choice} and \texttt{Quot.sound}. The repository's build file applies compatibility patches to several third-party dependencies; none of them is imported by these modules. The script we used, \texttt{verify-lean.sh}, accompanies this note.
+
+\emph{Formalization of Theorem~\ref{thm:main}.} The file \texttt{CircuitLowerBound.lean}, which accompanies this note, formalizes Theorem~\ref{thm:main}. Its main statements use only definitions from two libraries that were written independently of this note and of~\cite{OAI-MM}, and that the OpenAI development already pins as dependencies: CSLib (\url{https://github.com/leanprover/cslib}, commit \texttt{254e30e}), the Lean computer-science library, and Complexitylib (\url{https://github.com/cslib-community/complexitylib}, commit \texttt{242879e}), a complexity-theory library built on it.
+\begin{itemize}
+\item In CSLib, a circuit (\texttt{Cslib.Circuits.Circuit S n m}) is a straight-line program over a signature \texttt{S} with designated outputs, following~\cite[Section~6.1]{AB09}; its size is the number of gates, constants included. \texttt{C.Computes I f} says that $C$ computes $f$ under the interpretation $I$ of the gate symbols, \texttt{fullSignature 2 Bool} is the full binary basis, \texttt{Boolean.signature} is the De Morgan basis, and \texttt{ecomplexity I f} is the least size of a circuit computing $f$.
+\item In Complexitylib, \texttt{elementDistinctness m k} is the Boolean function on $m\cdot k$ bits that holds when the $m$ blocks of $k$ consecutive bits are pairwise distinct. Complexitylib uses it to prove Nechiporuk's formula lower bound.
+\end{itemize}
+The file proves:
+\begin{itemize}
+\item \texttt{cslib\_superlinear}: for every real $c$, for all sufficiently large $w$, every CSLib circuit over any signature whose gates have at most two arguments, with any Boolean interpretation, that computes \texttt{elementDistinctness} $(2^w)$ $(2w)$ has more than $cN$ gates, where $N=2^w\cdot 2w$;
+\item \texttt{full\_basis\_complexity}: for every natural number $c$, for all sufficiently large $w$, the circuit complexity of \texttt{elementDistinctness} $(2^w)$ $(2w)$ over the full binary basis exceeds $cN$;
+\item \texttt{deMorgan\_superlinear}: the same bound for circuits over the De Morgan basis;
+\item \texttt{cslib\_lower\_bound}: the quantitative form, $N w^{\sigma}<18s+6N+12$ for a circuit with $s$ gates and some fixed $\sigma>0$.
+\end{itemize}
+The proof follows Section~\ref{sec:translate} but builds the network differently, to fit the compositional definition of \texttt{Net}. A CSLib circuit is first converted, gate for gate, into an internal straight-line circuit of the same size. A selection network then copies each node's value to the gates that read it, all gates act in parallel, and \texttt{trace} feeds the gate outputs back as node values. For an acyclic circuit exactly one assignment of the fed-back bits is consistent, so the network represents the circuit exactly in every characteristic. Its size is at most $2N+6s+4$, larger than in Lemma~\ref{lem:translate}, which accounts for the weaker constants. An explicit bijection matches Complexitylib's block layout of the input bits with the order of the words in the OpenAI development, and the proof then applies \texttt{BatchDescent.manyList} over $\mathbb{Z}/2$. The file compiles against the build above in about 35 seconds, and \texttt{\#print axioms} reports that all five of its main theorems depend only on \texttt{propext}, \texttt{Classical.choice} and \texttt{Quot.sound}.
+
+\emph{What this does and does not establish.} The formal statements of Claim~\ref{claim:oai}, of $\omega_F=9/4$, and of a superlinear circuit lower bound for element distinctness are machine-verified, and the last is stated in the vocabulary of CSLib and Complexitylib. We did not run OpenAI's comparator tool, which additionally checks that the proved statements match the comparator file, nor \texttt{lean4checker} or any other independent replay of the proofs; the checks trust Lean's kernel and the prebuilt Mathlib cache. Since \texttt{Lean.ofReduceBool} is not among the reported axioms, no proof uses \texttt{native\_decide}. Only Theorem~\ref{thm:main}, with the weaker constants above, is formalized: Lemma~\ref{lem:translate} with its stated counts, Corollaries~\ref{cor:and}--\ref{cor:count}, Remark~\ref{rem:sep} and Section~\ref{sec:discussion} are informal. The remaining trust is in the definitions those statements use: CSLib's circuits, evaluation, \texttt{Computes}, \texttt{ecomplexity} and gate bases, and Complexitylib's \texttt{elementDistinctness}. These are short, were written for other purposes, and can be read directly; Complexitylib describes itself as AI-assisted with human review of definitions, and its element-distinctness module is marked as a candidate for inclusion in CSLib. The OpenAI definitions (\texttt{Net}, \texttt{Realizes}, \texttt{listBits}, \texttt{flatten}) no longer appear in the final statements; they enter only through \texttt{BatchDescent.manyList}, whose meaning matters for the interpretation of $\omega=9/4$ but not for the circuit lower bound.
+
+\section{The written proof, the companion papers, and tests}\label{sec:discussion}
+
+\subsection{Dependencies of the written proof}
+
+The written proof of Claim~\ref{claim:oai} in~\cite[Section~4]{OAI-MM} has three steps.
+\begin{enumerate}
+\item \emph{Reduction to tagged permutations} (\cite[Section~4.1]{OAI-MM}). Two distinctness tests check that a list of tags $j_i$ forms a permutation $\pi$ and that $x_i = y_{\pi(i)}$ for every $i$. The second test uses a signed sum over a reserve word and a comparison word at each address; when the tags form a permutation it factors as $\prod_j(1-\one\{x_{\pi^{-1}(j)}\neq y_j\}) = \prod_j \one\{x_{\pi^{-1}(j)}=y_j\}$. We checked this identity.
+\item \emph{Fields without ports} (\cite[Section~4.2]{OAI-MM}). Here the proof uses a routing lower bound (\cite[Lemma~4.1]{OAI-MM}), which assumes the field has no ports in the sense of~\cite[Definition~11.1]{OAI-Euc}. Consider a fixed trivalent topology that, for each permutation in a family, can choose vertex tables so that it realizes $r$ independent wires with uniform destinations among $q$ outputs. The lemma says such a topology has size $\Omega(r\sqrt{\log q})$. Its proof places the network in Hadamard spectral spaces and uses a product theorem and a graph-entropy bound from~\cite[Theorem~6.1, Corollary~5.2]{OAI-HC}. This case gives any $\sigma<1/2$.
+\item \emph{Fields with ports} (\cite[Section~4.3]{OAI-MM}). Here the proof combines a batch lower bound for a signed path-counting tensor $U_\ell^*$ (\cite[Theorem~12.1]{OAI-HC}), proved by a self-simulation argument in~\cite[Sections~13--15]{OAI-HC}, with a descent through tagged permutations~\cite[Proposition~14.1]{OAI-Euc}. This case gives $\sigma<\min\{a/4,\,b\delta/4,\,1/4\}$, with constants $a,\delta$ that are not made explicit.
+\end{enumerate}
+The papers do not determine which finite fields have ports; the proof covers both cases without that classification~\cite[Section~1.3]{OAI-HC}. We have not verified steps 2 and 3 or the companion results they use.
+
+\subsection{What the companion papers claim on their own}\label{sec:companions}
+
+Lemma~\ref{lem:translate} also converts two results of the companion papers into statements about Boolean circuits. Both are as strong as Theorem~\ref{thm:main}, and they help calibrate how much the papers claim.
+
+\paragraph{A $\oplus\mathrm P$ lower bound.} \cite[Theorem~12.1]{OAI-HC} is stated for every finite field: networks representing $t$ copies of $U_\ell^*$ have volume greater than $t\,\ell^{1+\delta}$. The tensor $U_\ell^*$ has $\ell$ exterior bits~\cite[Section~4.3]{OAI-MM}, and its entries are signed counts of computation paths of a polynomially clocked universal machine, reduced in the field. Over a field of characteristic $2$ the signs disappear, so $U_\ell^*$ is the indicator of a language in $\oplus\mathrm P$. The language is uniform, since $U_\ell^*$ is defined from one fixed universal machine with one fixed polynomial clock. Lemma~\ref{lem:translate} then shows that it has no Boolean circuits of size $c\,\ell^{1+\delta}$ for some constant $c>0$, so $\oplus\mathrm P\not\subseteq\mathrm{SIZE}(n^{1+\delta'})$ for every $\delta'<\delta$. Even $\oplus\mathrm P\not\subseteq\mathrm{SIZE}(O(n))$ is open. The fixed-polynomial lower bounds for $\mathrm{PP}$~\cite{Vin05} do not transfer to $\oplus\mathrm P$, and Fortnow, Santhanam and Williams showed that proving $\oplus\mathrm P\not\subseteq\mathrm{SIZE}(n^2)$ requires nonrelativizing techniques beyond those already used for related results~\cite{FSW09}. Since $\delta$ is unspecified, that barrier does not apply to~\cite[Theorem~12.1]{OAI-HC} directly, but it indicates the kind of obstacle the self-simulation proof in~\cite[Sections~13--15]{OAI-HC} must overcome.
+
+\paragraph{A dichotomy.} Combine~\cite[Lemma~4.1]{OAI-MM}, which holds in fields without ports, with~\cite[Theorem~13.1]{OAI-HC}, which holds in characteristics with ports: closed bit networks of volume $s$ and maximum degree at most $s^{1/20}$ can then be contracted in time $2^{O(s^{1-\eta})}$, with $\eta>0$ depending on the characteristic. Taken together, the papers imply that one of the following holds.
+\begin{enumerate}
+\item \emph{Some finite field has no ports.} Then cyclic shift and integer multiplication of $r$-bit numbers need circuits of size $\Omega(r\sqrt{\log r})$ (Section~\ref{sec:coding}), and Theorem~\ref{thm:main} holds for every $\sigma<1/2$.
+\item \emph{Every prime characteristic has ports.} Then for every prime $p$ there is $\eta_p>0$ such that, for every circuit $C$ of size $s$, the number of satisfying assignments of $C$ modulo $p$ can be computed from $C$ by a uniform algorithm in time $2^{O((s+N)^{1-\eta_p})}$, where $N$ is the number of inputs: apply Lemma~\ref{lem:translate}, whose networks have maximum degree $3$, and close each input wire with a unary all-ones vertex. Similarly, let $G:\{0,1\}^\lambda\to\{0,1\}^{m}$ be injective and computed by a circuit of size $s$, and let $y=G(x)$. The single-output circuit $V_i(z)=[\,G(z)=y\,]\wedge z_i$ has size $s+O(m)$, and the closed network for it contracts to $\#\{z: G(z)=y,\ z_i=1\} = x_i$. So every injective function $G$ with $m=O(\lambda)$ that is computable by circuits of size $O(\lambda)$ could be inverted in time $2^{O(\lambda^{1-\eta_2})}$, computing one bit of $x$ at a time.
+\end{enumerate}
+The second branch is closely related to OpenAI's separate claim that the Exponential Time Hypothesis is false~\cite{OAI-ETH}. Either branch would be a major result. (We use the papers' notions of ports for fields and for characteristics interchangeably, as they appear to.)
+
+\subsection{Upper bounds and the remaining gap}\label{sec:upper}
+
+Sorting $2^w$ words with the AKS network~\cite{AKS83} uses $O(2^w w)$ comparators. Each compare-and-exchange of two $2w$-bit words costs $O(w)$ gates, and checking adjacent words for equality costs $O(N)$. This gives circuits of size $O(2^w w^2) = O(N\log N)$ for $\Dw$. Theorem~\ref{thm:main} therefore leaves a gap between $(\log N)^{\sigma}$ and $\log N$.
+
+\subsection{A falsifiable checkpoint}
+
+Claim~\ref{claim:oai} asserts the existence of some $\sigma>0$, so a single size bound does not refute it. It would be refuted, for a given $k$, by circuits over $\B$ for $\Dw$ of size $N w^{o(1)}$, for example $O(N)$ or $N(\log\log N)^{O(1)}$, along infinitely many $w$. Counting circuits modulo $p$ of that size would refute it for fields of characteristic $p$. Since the formal version of Claim~\ref{claim:oai} has been checked (Section~\ref{sec:lean}), such a construction would show that the formal definitions do not mean what they appear to mean.
+
+We tried several natural attacks on Corollary~\ref{cor:count}, without success.
+\begin{itemize}
+\item An unambiguous circuit can guess the permutation that sorts the list and check that the words appear in strictly increasing order: exactly one witness exists when the words are distinct, and none otherwise. Checking the guess requires verifying that the guessed indices form a permutation and moving each word to its guessed position. That is the tagged-permutation problem to which~\cite[Section~4.1]{OAI-MM} reduces $\Dw$.
+\item Over $\mathbb F_2$, $\Dw(x)\equiv\det\bigl([x_i=x_j]\bigr)_{i,j}\pmod 2$, since the permanent counts the permutations preserving each class of equal words, and $c!$ is even for $c\ge2$. Evaluating this determinant, or checking a witness for it, again requires routing records through a guessed permutation, which costs $\Theta(N\log N)$ by known methods.
+\item Close relatives of $\Dw$ are cheap. Let $K$ be the number of pairs $i<j$ with $x_i=x_j$. \emph{Some word repeats} ($K\ge1$) has nondeterministic circuits of size $O(N)$ (Remark~\ref{rem:sep}). For fixed $p$, the predicate $K\equiv 0\pmod p$ has counting circuits modulo $p$ of size $O(N)$: by Fermat's little theorem it equals $1-K^{p-1}\bmod p$, the number of $(p-1)$-tuples of colliding pairs is $K^{p-1}$, and the offset is added as in Remark~\ref{rem:sep}. Neither equals $\Dw$, which requires $K=0$ exactly.
+\end{itemize}
+The last point also shows that the hardness is worst-case. For uniformly random $x$, $\mathbb E[K]=\binom{2^w}{2}2^{-2w}<1/2$ and $K$ is asymptotically Poisson with mean $1/2$, so $1-(K\bmod 2)$, which has parity-counting circuits of size $O(N)$, agrees with $\Dw$ on about $92\%$ of inputs. A conjunction of $O_\epsilon(1)$ such circuits, each counting only the colliding pairs $(i,j)$, $i<j$, whose $2w$-bit index pair passes a fixed affine hash, reduces the error below any constant $\epsilon>0$. Indeed, by Markov's inequality $\Pr[K>2^R]<\epsilon/2$ for $R=\lceil\log_2(1/\epsilon)\rceil$. For each output length $r=1,\dots,R+1$ use $O(\log(1/\epsilon))$ hashes $h:\{0,1\}^{2w}\to\{0,1\}^r$, and let the corresponding circuit compute $1-(K_h\bmod 2)$, where $K_h$ counts the colliding pairs with $h(i,j)=0$. By the Valiant--Vazirani lemma, when $1\le K\le 2^R$ a uniformly random affine hash of the right output length isolates a single pair with probability at least $1/8$, so for random hashes the conjunction errs with probability less than $\epsilon$ over $x$ and the hashes, and some fixed choice of hashes does as well. Each hash costs $O(w^2)=o(N)$ gates, and the conjunction never errs when $K=0$. The conjunction is again a single parity-counting circuit, since $\prod_\ell\sum_{y_\ell}C_\ell=\sum_{y}\bigwedge_\ell C_\ell$, so the construction in the proof of Corollary~\ref{cor:count} turns it into a network over $\mathbb F_2$ of size $O(N)$ that agrees with $\Dw$ on all but an $\epsilon$ fraction of inputs. Over $\mathbb F_p$ for odd $p$ the same works with $1-K_h^{p-1}\bmod p$ in place of $1-(K_h\bmod 2)$. So Claim~\ref{claim:oai} has no analogue for networks, or counting circuits, that may err on a constant fraction of uniformly random inputs.
+
+\subsection{Relation to network coding}\label{sec:coding}
+
+The conjecture of Li and Li~\cite{LL04} asserts that network coding gives no advantage over multicommodity flow in undirected graphs. Under it, circuits that must route many bits to permuted destinations need size $\Omega(n\log n)$, which gives conditional lower bounds for sorting and multiplication~\cite{FHLS19,AFKL19}. Zhang, Li and Li have recently claimed a counterexample to the conjecture, formalized in Lean~\cite{ZLL26}. Braverman, Garg and Schvartzman showed earlier that any constant gap between coding and routing in undirected graphs can be amplified to a gap of $(\log|G|)^{c}$ for some $c>0$~\cite{BGS17}. Together these undercut the conditional route to $\Omega(n\log n)$ circuit lower bounds. Assuming Claim~\ref{claim:oai}, Corollary~\ref{cor:reductions} recovers a weaker bound for sorting, $\Omega(N(\log N)^{\sigma})$, without the network coding conjecture.
+
+The routing bound~\cite[Lemma~4.1]{OAI-MM} has a related structure but different hypotheses. It applies to arbitrary vertex tables over $k$, which play the role of arbitrary coding, it gives $\sqrt{\log q}$ in place of $\log q$, and it holds only in fields without ports. It concerns realizing many independent wires at once, not the existence of disjoint paths, so Valiant's linear-size superconcentrators~\cite{Val76}, which defeat purely connectivity-based arguments, do not obviously apply to it. We know of no result that contradicts it.
+
+If some finite field has no ports, \cite[Lemma~4.1]{OAI-MM} alone already has Boolean consequences. Translate a circuit for cyclic shift (inputs $x\in\{0,1\}^r$ and a shift $a$ of $\log_2 r$ bits, $r$ outputs) as in Lemma~\ref{lem:translate}. The lemma is stated for one output, but its proof is unchanged with several: each output wire becomes an exterior bit, which adds $O(r)$ to the volume. Each shift input $a_j$ is then fixed by closing its wire with a unary vertex whose table is $c\mapsto[\,c=a_j\,]$. The topology is fixed, only the pinned tables depend on $a$, and for uniform $a$ each input has a uniform destination among $r$ outputs. \cite[Lemma~4.1]{OAI-MM} then gives $\Omega(r\sqrt{\log r})$ gates for cyclic shift. Cyclic shift reduces to multiplying $r$-bit integers with $r$ extra gates: pin the second factor to $2^a$, so that the product $z$ is $x$ shifted left by $a$, and output $z_j\oplus z_{j+r}=x_{(j-a)\bmod r}$ for $0\le j<r$. So in this case integer multiplication also needs circuits of size $\Omega(r\sqrt{\log r})$, a $\sqrt{\log}$ version of the conditional bound of~\cite{AFKL19}. Whether cyclic shift or integer multiplication has linear-size circuits is open.
+
+\section*{Use of AI}
+The observation, this note and the file \texttt{CircuitLowerBound.lean} were prepared with the assistance of Claude, an AI model by Anthropic. Drafts were reviewed by separate AI sessions that did not have access to the drafting conversation. The Lean builds reported in Section~\ref{sec:lean} were run by the author. The author has not independently checked every informal argument; the machine-checked statements are exactly those listed in Section~\ref{sec:lean}. The author is responsible for the content.
+
+\section*{Version}
+References to~\cite{OAI-MM,OAI-Euc,OAI-HC} and to the Lean development are to the repository \url{https://github.com/openai/math} at commit \texttt{3344da59991ed94f9ba711217b29c1d760badfa6} (November 24, 2026).
+
+\bibliographystyle{alpha}
+\bibliography{references}
+
+\end{document}
